@@ -21,7 +21,7 @@ jobs:
       - name: Build Windows Executable
         run: |
           # Build the Windows executable
-          GOOS=windows GOARCH=amd64 go build -o telegraf.exe
+          go build -o telegraf.exe
 
       - name: Create Release
         id: create_release
