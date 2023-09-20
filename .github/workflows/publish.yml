@@ -23,15 +23,15 @@ jobs:
           GOOS=windows GOARCH=amd64 make telegraf
           mv telegraf.exe telegraf-windows-amd64.exe
 
-      - name: Build Telegraf for Linux (amd64)
-        run: |
-          GOOS=linux GOARCH=amd64 make telegraf
-          mv telegraf telegraf-linux-amd64
+      # - name: Build Telegraf for Linux (amd64)
+      #   run: |
+      #     GOOS=linux GOARCH=amd64 make telegraf
+      #     mv telegraf telegraf-linux-amd64
 
-      - name: Build Telegraf for Linux (ARM)
-        run: |
-          GOOS=linux GOARCH=arm make telegraf
-          mv telegraf telegraf-linux-arm
+      # - name: Build Telegraf for Linux (ARM)
+      #   run: |
+      #     GOOS=linux GOARCH=arm make telegraf
+      #     mv telegraf telegraf-linux-arm
 
       # Add more platform builds as needed
 
@@ -41,9 +41,7 @@ jobs:
         with:
           files: |
             telegraf-windows-amd64.exe
-            telegraf-linux-amd64
-            telegraf-linux-arm
-            # Add more files for other platforms
+          tag_name: v1.0.0
 
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
