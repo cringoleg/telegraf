@@ -1,0 +1,36 @@
+name: Build and Publish Windows Release
+
+on:
+  push:
+    branches:
+      - main  # Change to your main branch name
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: 1.21  # Specify your desired Go version
+
+      - name: Build Windows Executable
+        run: |
+          # Build the Windows executable
+          GOOS=windows GOARCH=amd64 go build -o telegraf.exe
+
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v4
+        with:
+          files: |
+            telegraf.exe  # Add other files if needed
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
+      # - name: Get Release URL
+      #   run: echo "Release URL: ${{ steps.create_release.outputs.upload_url }}"
