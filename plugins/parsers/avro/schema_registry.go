@@ -29,14 +29,13 @@ type schemaRegistry struct {
 const schemaByID = "%s/schemas/ids/%d"
 
 func newSchemaRegistry(addr string, caCertPath string) (*schemaRegistry, error) {
-	caCert, err := os.ReadFile(caCertPath)
-	if err != nil {
-		return nil, err
-	}
-
 	var client *http.Client
 	var tlsCfg *tls.Config
 	if caCertPath != "" {
+		caCert, err := os.ReadFile(caCertPath)
+		if err != nil {
+			return nil, err
+		}
 		caCertPool := x509.NewCertPool()
 		caCertPool.AppendCertsFromPEM(caCert)
 		tlsCfg = &tls.Config{
@@ -100,12 +99,12 @@ func (sr *schemaRegistry) getSchemaAndCodec(id int) (*schemaAndCodec, error) {
 
 	schema, ok := jsonResponse["schema"]
 	if !ok {
-		return nil, fmt.Errorf("malformed respose from schema registry: no 'schema' key")
+		return nil, fmt.Errorf("malformed response from schema registry: no 'schema' key")
 	}
 
 	schemaValue, ok := schema.(string)
 	if !ok {
-		return nil, fmt.Errorf("malformed respose from schema registry: %v cannot be cast to string", schema)
+		return nil, fmt.Errorf("malformed response from schema registry: %v cannot be cast to string", schema)
 	}
 	codec, err := goavro.NewCodec(schemaValue)
 	if err != nil {

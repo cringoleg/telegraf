@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -131,7 +132,7 @@ func (l *Loki) Write(metrics []telegraf.Metric) error {
 			line += fmt.Sprintf("%s=\"%v\" ", f.Key, f.Value)
 		}
 
-		s.insertLog(tags, Log{fmt.Sprintf("%d", m.Time().UnixNano()), line})
+		s.insertLog(tags, Log{strconv.FormatInt(m.Time().UnixNano(), 10), line})
 	}
 
 	return l.writeMetrics(s)
@@ -163,16 +164,16 @@ func (l *Loki) writeMetrics(s Streams) error {
 		}
 		password, err := l.Password.Get()
 		if err != nil {
-			config.ReleaseSecret(username)
+			username.Destroy()
 			return fmt.Errorf("getting password failed: %w", err)
 		}
-		req.SetBasicAuth(string(username), string(password))
-		config.ReleaseSecret(password)
-		config.ReleaseSecret(username)
+		req.SetBasicAuth(username.String(), password.String())
+		username.Destroy()
+		password.Destroy()
 	}
 
 	for k, v := range l.Headers {
-		if strings.ToLower(k) == "host" {
+		if strings.EqualFold(k, "host") {
 			req.Host = v
 		}
 		req.Header.Set(k, v)

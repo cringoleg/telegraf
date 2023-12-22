@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"path"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/influxdata/telegraf"
@@ -100,9 +101,8 @@ func NewHTTPClient(cfg *HTTPConfig) (*httpClient, error) {
 	if err != nil {
 		return nil, fmt.Errorf("getting token failed: %w", err)
 	}
-	headers["Authorization"] = "Token " + string(token)
-	config.ReleaseSecret(token)
-
+	headers["Authorization"] = "Token " + token.String()
+	token.Destroy()
 	for k, v := range cfg.Headers {
 		headers[k] = v
 	}
@@ -411,7 +411,11 @@ func (c *httpClient) requestBodyReader(metrics []telegraf.Metric) io.ReadCloser 
 
 func (c *httpClient) addHeaders(req *http.Request) {
 	for header, value := range c.Headers {
-		req.Header.Set(header, value)
+		if strings.EqualFold(header, "host") {
+			req.Host = value
+		} else {
+			req.Header.Set(header, value)
+		}
 	}
 }
 

@@ -109,8 +109,8 @@ func (m *Mysql) Init() error {
 		if err != nil {
 			return fmt.Errorf("getting server %d failed: %w", i, err)
 		}
-		dsn := string(dsnSecret)
-		config.ReleaseSecret(dsnSecret)
+		dsn := dsnSecret.String()
+		dsnSecret.Destroy()
 		conf, err := mysql.ParseDSN(dsn)
 		if err != nil {
 			return fmt.Errorf("parsing %q failed: %w", dsn, err)
@@ -419,8 +419,8 @@ func (m *Mysql) gatherServer(server *config.Secret, acc telegraf.Accumulator) er
 	if err != nil {
 		return err
 	}
-	dsn := string(dsnSecret)
-	config.ReleaseSecret(dsnSecret)
+	dsn := dsnSecret.String()
+	dsnSecret.Destroy()
 	servtag := getDSNTag(dsn)
 
 	db, err := sql.Open("mysql", dsn)
@@ -656,7 +656,7 @@ func (m *Mysql) gatherSlaveStatuses(db *sql.DB, servtag string, acc telegraf.Acc
 			colValue := vals[i]
 
 			if m.GatherAllSlaveChannels &&
-				(strings.ToLower(colName) == "channel_name" || strings.ToLower(colName) == "connection_name") {
+				(strings.EqualFold(colName, "channel_name") || strings.EqualFold(colName, "connection_name")) {
 				// Since the default channel name is empty, we need this block
 				channelName := "default"
 				if len(colValue) > 0 {

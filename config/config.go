@@ -20,8 +20,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/compose-spec/compose-go/template"
-	"github.com/compose-spec/compose-go/utils"
 	"github.com/coreos/go-semver/semver"
 	"github.com/influxdata/toml"
 	"github.com/influxdata/toml/ast"
@@ -790,103 +788,6 @@ func parseConfig(contents []byte) (*ast.Table, error) {
 	return toml.Parse(outputBytes)
 }
 
-func removeComments(contents []byte) ([]byte, error) {
-	tomlReader := bytes.NewReader(contents)
-
-	// Initialize variables for tracking state
-	var inQuote, inComment, escaped bool
-	var quoteChar byte
-
-	// Initialize buffer for modified TOML data
-	var output bytes.Buffer
-
-	buf := make([]byte, 1)
-	// Iterate over each character in the file
-	for {
-		_, err := tomlReader.Read(buf)
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				break
-			}
-			return nil, err
-		}
-		char := buf[0]
-
-		// Toggle the escaped state at backslash to we have true every odd occurrence.
-		if char == '\\' {
-			escaped = !escaped
-		}
-
-		if inComment {
-			// If we're currently in a comment, check if this character ends the comment
-			if char == '\n' {
-				// End of line, comment is finished
-				inComment = false
-				_, _ = output.WriteRune('\n')
-			}
-		} else if inQuote {
-			// If we're currently in a quote, check if this character ends the quote
-			if char == quoteChar && !escaped {
-				// End of quote, we're no longer in a quote
-				inQuote = false
-			}
-			output.WriteByte(char)
-		} else {
-			// Not in a comment or a quote
-			if (char == '"' || char == '\'') && !escaped {
-				// Start of quote
-				inQuote = true
-				quoteChar = char
-				output.WriteByte(char)
-			} else if char == '#' && !escaped {
-				// Start of comment
-				inComment = true
-			} else {
-				// Not a comment or a quote, just output the character
-				output.WriteByte(char)
-			}
-		}
-
-		// Reset escaping if any other character occurred
-		if char != '\\' {
-			escaped = false
-		}
-	}
-	return output.Bytes(), nil
-}
-
-func substituteEnvironment(contents []byte, oldReplacementBehavior bool) ([]byte, error) {
-	options := []template.Option{
-		template.WithReplacementFunction(func(s string, m template.Mapping, cfg *template.Config) (string, error) {
-			result, applied, err := template.DefaultReplacementAppliedFunc(s, m, cfg)
-			if err == nil && !applied {
-				// Keep undeclared environment-variable patterns to reproduce
-				// pre-v1.27 behavior
-				return s, nil
-			}
-			if err != nil && strings.HasPrefix(err.Error(), "Invalid template:") {
-				// Keep invalid template patterns to ignore regexp substitutions
-				// like ${1}
-				return s, nil
-			}
-			return result, err
-		}),
-		template.WithoutLogging,
-	}
-	if oldReplacementBehavior {
-		options = append(options, template.WithPattern(oldVarRe))
-	}
-
-	envMap := utils.GetAsEqualsMap(os.Environ())
-	retVal, err := template.SubstituteWithOptions(string(contents), func(k string) (string, bool) {
-		if v, ok := envMap[k]; ok {
-			return v, ok
-		}
-		return "", false
-	}, options...)
-	return []byte(retVal), err
-}
-
 func (c *Config) addAggregator(name string, table *ast.Table) error {
 	creator, ok := aggregators.Aggregators[name]
 	if !ok {
@@ -1388,7 +1289,7 @@ func (c *Config) buildAggregator(name string, tbl *ast.Table) (*models.Aggregato
 	}
 
 	var err error
-	conf.Filter, err = c.buildFilter(tbl)
+	conf.Filter, err = c.buildFilter("aggregators."+name, tbl)
 	if err != nil {
 		return conf, err
 	}
@@ -1412,7 +1313,7 @@ func (c *Config) buildProcessor(category, name string, tbl *ast.Table) (*models.
 	}
 
 	var err error
-	conf.Filter, err = c.buildFilter(tbl)
+	conf.Filter, err = c.buildFilter(category+"."+name, tbl)
 	if err != nil {
 		return conf, err
 	}
@@ -1423,20 +1324,60 @@ func (c *Config) buildProcessor(category, name string, tbl *ast.Table) (*models.
 }
 
 // buildFilter builds a Filter
-// (tagpass/tagdrop/namepass/namedrop/fieldpass/fielddrop) to
+// (tags, fields, namepass, namedrop, metricpass) to
 // be inserted into the models.OutputConfig/models.InputConfig
 // to be used for glob filtering on tags and measurements
-func (c *Config) buildFilter(tbl *ast.Table) (models.Filter, error) {
+func (c *Config) buildFilter(plugin string, tbl *ast.Table) (models.Filter, error) {
 	f := models.Filter{}
 
 	c.getFieldStringSlice(tbl, "namepass", &f.NamePass)
+	c.getFieldString(tbl, "namepass_separator", &f.NamePassSeparators)
 	c.getFieldStringSlice(tbl, "namedrop", &f.NameDrop)
+	c.getFieldString(tbl, "namedrop_separator", &f.NameDropSeparators)
 
-	c.getFieldStringSlice(tbl, "pass", &f.FieldPass)
-	c.getFieldStringSlice(tbl, "fieldpass", &f.FieldPass)
+	var oldPass []string
+	c.getFieldStringSlice(tbl, "pass", &oldPass)
+	if len(oldPass) > 0 {
+		models.PrintOptionDeprecationNotice(telegraf.Warn, plugin, "pass", telegraf.DeprecationInfo{
+			Since:     "0.10.4",
+			RemovalIn: "2.0.0",
+			Notice:    "use 'fieldinclude' instead",
+		})
+		f.FieldInclude = append(f.FieldInclude, oldPass...)
+	}
+	var oldFieldPass []string
+	c.getFieldStringSlice(tbl, "fieldpass", &oldFieldPass)
+	if len(oldFieldPass) > 0 {
+		models.PrintOptionDeprecationNotice(telegraf.Warn, plugin, "fieldpass", telegraf.DeprecationInfo{
+			Since:     "1.29.0",
+			RemovalIn: "2.0.0",
+			Notice:    "use 'fieldinclude' instead",
+		})
+		f.FieldInclude = append(f.FieldInclude, oldFieldPass...)
+	}
+	c.getFieldStringSlice(tbl, "fieldinclude", &f.FieldInclude)
 
-	c.getFieldStringSlice(tbl, "drop", &f.FieldDrop)
-	c.getFieldStringSlice(tbl, "fielddrop", &f.FieldDrop)
+	var oldDrop []string
+	c.getFieldStringSlice(tbl, "drop", &oldDrop)
+	if len(oldDrop) > 0 {
+		models.PrintOptionDeprecationNotice(telegraf.Warn, plugin, "drop", telegraf.DeprecationInfo{
+			Since:     "0.10.4",
+			RemovalIn: "2.0.0",
+			Notice:    "use 'fieldexclude' instead",
+		})
+		f.FieldExclude = append(f.FieldExclude, oldDrop...)
+	}
+	var oldFieldDrop []string
+	c.getFieldStringSlice(tbl, "fielddrop", &oldFieldDrop)
+	if len(oldFieldDrop) > 0 {
+		models.PrintOptionDeprecationNotice(telegraf.Warn, plugin, "fielddrop", telegraf.DeprecationInfo{
+			Since:     "1.29.0",
+			RemovalIn: "2.0.0",
+			Notice:    "use 'fieldexclude' instead",
+		})
+		f.FieldExclude = append(f.FieldExclude, oldFieldDrop...)
+	}
+	c.getFieldStringSlice(tbl, "fieldexclude", &f.FieldExclude)
 
 	c.getFieldTagFilter(tbl, "tagpass", &f.TagPassFilters)
 	c.getFieldTagFilter(tbl, "tagdrop", &f.TagDropFilters)
@@ -1489,7 +1430,7 @@ func (c *Config) buildInput(name string, tbl *ast.Table) (*models.InputConfig, e
 	}
 
 	var err error
-	cp.Filter, err = c.buildFilter(tbl)
+	cp.Filter, err = c.buildFilter("inputs."+name, tbl)
 	if err != nil {
 		return cp, err
 	}
@@ -1504,7 +1445,7 @@ func (c *Config) buildInput(name string, tbl *ast.Table) (*models.InputConfig, e
 // models.OutputConfig to be inserted into models.RunningInput
 // Note: error exists in the return for future calls that might require error
 func (c *Config) buildOutput(name string, tbl *ast.Table) (*models.OutputConfig, error) {
-	filter, err := c.buildFilter(tbl)
+	filter, err := c.buildFilter("outputs."+name, tbl)
 	if err != nil {
 		return nil, err
 	}
@@ -1540,12 +1481,12 @@ func (c *Config) missingTomlField(_ reflect.Type, key string) error {
 	case "alias", "always_include_local_tags",
 		"collection_jitter", "collection_offset",
 		"data_format", "delay", "drop", "drop_original",
-		"fielddrop", "fieldpass", "flush_interval", "flush_jitter",
+		"fielddrop", "fieldexclude", "fieldinclude", "fieldpass", "flush_interval", "flush_jitter",
 		"grace",
 		"interval",
 		"lvm", // What is this used for?
 		"metric_batch_size", "metric_buffer_limit", "metricpass",
-		"name_override", "name_prefix", "name_suffix", "namedrop", "namepass",
+		"name_override", "name_prefix", "name_suffix", "namedrop", "namedrop_separator", "namepass", "namepass_separator",
 		"order",
 		"pass", "period", "precision",
 		"tagdrop", "tagexclude", "taginclude", "tagpass", "tags":

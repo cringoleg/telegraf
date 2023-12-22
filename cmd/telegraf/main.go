@@ -178,7 +178,7 @@ func runApp(args []string, outputBuffer io.Writer, pprof Server, c TelegrafConfi
 			}
 			sort.Strings(names)
 			for _, k := range names {
-				outputBuffer.Write([]byte(fmt.Sprintf("  %s\n", k)))
+				fmt.Fprintf(outputBuffer, "  %s\n", k)
 			}
 			return nil
 		// print available input plugins
@@ -191,7 +191,7 @@ func runApp(args []string, outputBuffer io.Writer, pprof Server, c TelegrafConfi
 			}
 			sort.Strings(names)
 			for _, k := range names {
-				outputBuffer.Write([]byte(fmt.Sprintf("  %s\n", k)))
+				fmt.Fprintf(outputBuffer, "  %s\n", k)
 			}
 			return nil
 		// print usage for a plugin, ie, 'telegraf --usage mysql'
@@ -204,7 +204,7 @@ func runApp(args []string, outputBuffer io.Writer, pprof Server, c TelegrafConfi
 			return nil
 		// DEPRECATED
 		case cCtx.Bool("version"):
-			outputBuffer.Write([]byte(fmt.Sprintf("%s\n", internal.FormatFullVersion())))
+			fmt.Fprintf(outputBuffer, "%s\n", internal.FormatFullVersion())
 			return nil
 		// DEPRECATED
 		case cCtx.Bool("sample-config"):
@@ -233,6 +233,7 @@ func runApp(args []string, outputBuffer io.Writer, pprof Server, c TelegrafConfi
 			debug:          cCtx.Bool("debug"),
 			once:           cCtx.Bool("once"),
 			quiet:          cCtx.Bool("quiet"),
+			unprotected:    cCtx.Bool("unprotected"),
 		}
 
 		w := WindowFlags{
@@ -315,6 +316,10 @@ func runApp(args []string, outputBuffer io.Writer, pprof Server, c TelegrafConfi
 					Usage: "run in quiet mode",
 				},
 				&cli.BoolFlag{
+					Name:  "unprotected",
+					Usage: "do not protect secrets in memory",
+				},
+				&cli.BoolFlag{
 					Name: "test",
 					Usage: "enable test mode: gather metrics, print them out, and exit. " +
 						"Note: Test mode only runs inputs, not processors, aggregators, or outputs",
@@ -358,7 +363,7 @@ func runApp(args []string, outputBuffer io.Writer, pprof Server, c TelegrafConfi
 				Name:  "version",
 				Usage: "print current version to stdout",
 				Action: func(cCtx *cli.Context) error {
-					outputBuffer.Write([]byte(fmt.Sprintf("%s\n", internal.FormatFullVersion())))
+					fmt.Fprintf(outputBuffer, "%s\n", internal.FormatFullVersion())
 					return nil
 				},
 			},
