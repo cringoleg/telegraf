@@ -61,6 +61,10 @@ See the [CONFIGURATION.md][CONFIGURATION.md] for more details.
   ## Remove leading slashes and dots in field-name
   # trim_field_names = false
 
+  ## Guess the path-tag if an update does not contain a prefix-path
+  ## If enabled, the common-path of all elements in the update is used.
+  # guess_path_tag = false
+
   ## enable client-side TLS and define CA to authenticate the device
   # enable_tls = false
   # tls_ca = "/etc/telegraf/ca.pem"
@@ -84,7 +88,7 @@ See the [CONFIGURATION.md][CONFIGURATION.md] for more details.
   ## * Juniper Header Extension (juniper_header): some sensors are directly managed by
   ##   Linecard, which adds the Juniper GNMI Header Extension. Enabling this
   ##   allows the decoding of the Extension header if present. Currently this knob
-  ##   adds component, component_id & sub_component_id as additionnal tags
+  ##   adds component, component_id & sub_component_id as additional tags
   # vendor_specific = []
 
   ## Define additional aliases to map encoding paths to measurement names

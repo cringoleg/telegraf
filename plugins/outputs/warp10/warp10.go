@@ -110,7 +110,7 @@ func (w *Warp10) GenWarp10Payload(metrics []telegraf.Metric) string {
 			collectString = append(collectString, messageLine)
 		}
 	}
-	return fmt.Sprint(strings.Join(collectString, ""))
+	return strings.Join(collectString, "")
 }
 
 // Write metrics to Warp10
@@ -131,8 +131,8 @@ func (w *Warp10) Write(metrics []telegraf.Metric) error {
 	if err != nil {
 		return fmt.Errorf("getting token failed: %w", err)
 	}
-	req.Header.Set("X-Warp10-Token", string(token))
-	config.ReleaseSecret(token)
+	req.Header.Set("X-Warp10-Token", token.String())
+	token.Destroy()
 
 	resp, err := w.client.Do(req)
 	if err != nil {

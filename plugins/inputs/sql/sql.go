@@ -327,6 +327,7 @@ func (s *SQL) Init() error {
 		"mssql":     "sqlserver",
 		"maria":     "mysql",
 		"postgres":  "pgx",
+		"oracle":    "oracle",
 	}
 	s.driverName = s.Driver
 	if driver, ok := aliases[s.Driver]; ok {
@@ -372,8 +373,8 @@ func (s *SQL) setupConnection() error {
 	if err != nil {
 		return fmt.Errorf("getting DSN failed: %w", err)
 	}
-	dsn := string(dsnSecret)
-	config.ReleaseSecret(dsnSecret)
+	dsn := dsnSecret.String()
+	dsnSecret.Destroy()
 
 	s.Log.Debug("Connecting...")
 	s.db, err = dbsql.Open(s.driverName, dsn)

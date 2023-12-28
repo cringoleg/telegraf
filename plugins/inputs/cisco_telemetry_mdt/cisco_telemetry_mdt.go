@@ -337,9 +337,7 @@ func (c *CiscoTelemetryMDT) MdtDialout(stream dialout.GRPCMdtDialout_MdtDialoutS
 		if packet.TotalSize == 0 {
 			c.handleTelemetry(packet.Data)
 		} else if int(packet.TotalSize) <= c.MaxMsgSize {
-			if _, err := chunkBuffer.Write(packet.Data); err != nil {
-				c.acc.AddError(fmt.Errorf("writing packet %q failed: %w", packet.Data, err))
-			}
+			chunkBuffer.Write(packet.Data)
 			if chunkBuffer.Len() >= int(packet.TotalSize) {
 				c.handleTelemetry(chunkBuffer.Bytes())
 				chunkBuffer.Reset()
@@ -361,7 +359,7 @@ func (c *CiscoTelemetryMDT) handleTelemetry(data []byte) {
 	msg := &telemetry.Telemetry{}
 	err := proto.Unmarshal(data, msg)
 	if err != nil {
-		c.acc.AddError(fmt.Errorf("failed to decode: %w", err))
+		c.acc.AddError(fmt.Errorf("failed to decode: %w: %s", err, msg.String()))
 		return
 	}
 

@@ -3,7 +3,7 @@ name: Build and Publish Telegraf for All Platforms
 on:
   push:
     branches:
-      - main  # Change to your main branch name
+      - backup  # Change to your main branch name
 
 jobs:
   build:

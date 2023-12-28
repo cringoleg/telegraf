@@ -60,7 +60,7 @@ type CtrlXDataLayer struct {
 
 // convertTimestamp2UnixTime converts the given Data Layer timestamp of the payload to UnixTime.
 func convertTimestamp2UnixTime(t int64) time.Time {
-	// 1 sec=1000 milisec=1000000 microsec=1000000000 nanosec.
+	// 1 sec=1000 millisec=1000000 microsec=1000000000 nanosec.
 	// Convert from FILETIME (100-nanosecond intervals since January 1, 1601 UTC) to
 	// seconds and nanoseconds since January 1, 1970 UTC.
 	// Between Jan 1, 1601 and Jan 1, 1970 there are 11644473600 seconds.
@@ -289,17 +289,18 @@ func (c *CtrlXDataLayer) Start(acc telegraf.Accumulator) error {
 
 	password, err := c.Password.Get()
 	if err != nil {
+		username.Destroy()
 		return fmt.Errorf("getting password failed: %w", err)
 	}
 
 	c.tokenManager = token.TokenManager{
 		Url:        c.url,
-		Username:   string(username),
-		Password:   string(password),
+		Username:   username.String(),
+		Password:   password.String(),
 		Connection: c.connection,
 	}
-	config.ReleaseSecret(username)
-	config.ReleaseSecret(password)
+	username.Destroy()
+	password.Destroy()
 
 	c.acc = acc
 
